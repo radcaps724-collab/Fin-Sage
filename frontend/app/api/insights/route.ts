@@ -1,12 +1,15 @@
-import { ObjectId } from "mongodb";
-import clientPromise from "@/lib/mongodb";
-import { asApiError } from "@/lib/api-errors";
+import { ApiError, asApiError } from "@/lib/api-errors";
+import { getSupabaseServer } from "@/lib/supabase-server";
 import { errorResponse, successResponse } from "@/lib/api-response";
 import { requireAuthUser } from "@/lib/auth";
 import type { Transaction } from "@/types/models";
 
-const DATABASE_NAME = "finsage";
-type TransactionRecord = Omit<Transaction, "_id"> & { _id: ObjectId };
+type TransactionRecord = Omit<Transaction, "_id"> & {
+  id?: string | number;
+  _id?: string | number;
+  user_id?: string;
+  created_at?: string;
+};
 
 interface CategorySummary {
   category: string;
@@ -15,25 +18,29 @@ interface CategorySummary {
 
 export async function GET(request: Request) {
   try {
+    const supabaseServer = getSupabaseServer();
     const user = requireAuthUser(request);
-    const client = await clientPromise;
-    const db = client.db(DATABASE_NAME);
+    const { data: transactions, error } = await supabaseServer
+      .from("transactions")
+      .select("*")
+      .eq("user_id", user.userId);
 
-    const transactions = await db
-      .collection<TransactionRecord>("transactions")
-      .find({ userId: user.userId })
-      .toArray();
+    if (error) {
+      throw new ApiError(error.message, 500, "SUPABASE_QUERY_FAILED");
+    }
 
-    const totalIncome = transactions
+    const rows = (transactions ?? []) as TransactionRecord[];
+
+    const totalIncome = rows
       .filter((item) => item.type === "income")
       .reduce((sum, item) => sum + item.amount, 0);
-    const totalExpenses = transactions
+    const totalExpenses = rows
       .filter((item) => item.type === "expense")
       .reduce((sum, item) => sum + item.amount, 0);
     const savingsRate =
       totalIncome > 0 ? ((totalIncome - totalExpenses) / totalIncome) * 100 : 0;
 
-    const byCategory = transactions
+    const byCategory = rows
       .filter((item) => item.type === "expense")
       .reduce<Record<string, number>>((acc, item) => {
         acc[item.category] = (acc[item.category] ?? 0) + item.amount;
@@ -46,7 +53,7 @@ export async function GET(request: Request) {
     categoryRows.sort((a, b) => b.total - a.total);
 
     const topCategory = categoryRows[0]?.category ?? "N/A";
-    const monthlyTrendMap = transactions.reduce<Record<string, number>>((acc, item) => {
+    const monthlyTrendMap = rows.reduce<Record<string, number>>((acc, item) => {
       if (item.type !== "expense") {
         return acc;
       }
