@@ -1,10 +1,17 @@
 import { NextResponse } from "next/server";
+import { ObjectId } from "mongodb";
+import clientPromise from "@/lib/mongodb";
 import { ApiError, asApiError } from "@/lib/api-errors";
 import { parseJsonBody, errorResponse, successResponse } from "@/lib/api-response";
 import { AUTH_COOKIE_NAME, BACKEND_AUTH_COOKIE_NAME, signAuthToken } from "@/lib/auth";
+import { verifyPassword } from "@/lib/password";
+import type { User } from "@/types/models";
 
 const BACKEND_BASE_URL =
   process.env.BACKEND_URL ?? process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:5000";
+const DATABASE_NAME = "finsage";
+
+type UserRecord = Omit<User, "_id"> & { _id: ObjectId };
 
 interface LoginBody {
   email: string;
@@ -25,59 +32,63 @@ export async function POST(request: Request) {
       throw new ApiError("Invalid login payload", 400, "VALIDATION_ERROR");
     }
 
-    let upstream: Response;
-    try {
-      upstream = await fetch(`${BACKEND_BASE_URL}/api/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
-      });
-    } catch {
-      throw new ApiError(
-        `Auth backend unavailable at ${BACKEND_BASE_URL}`,
-        502,
-        "BACKEND_UNAVAILABLE"
-      );
-    }
-
     let payload: {
       message?: string;
       token?: string;
       user?: { id: string; name: string; email: string };
     } = {};
+    let backendAvailable = false;
 
     try {
-      payload = (await upstream.json()) as typeof payload;
-    } catch {
-      if (!upstream.ok) {
-        throw new ApiError(
-          `Auth backend error (${upstream.status})`,
-          upstream.status,
-          "BACKEND_LOGIN_FAILED"
-        );
+      const upstream = await fetch(`${BACKEND_BASE_URL}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+      });
+
+      if (upstream.ok) {
+        payload = (await upstream.json()) as typeof payload;
+        backendAvailable = Boolean(payload.token && payload.user);
+      } else {
+        backendAvailable = false;
       }
+    } catch {
+      backendAvailable = false;
     }
 
-    if (!upstream.ok || !payload.token || !payload.user) {
-      throw new ApiError(
-        payload.message || "Invalid credentials",
-        upstream.status || 401,
-        "BACKEND_LOGIN_FAILED"
-      );
+    if (!backendAvailable) {
+      const client = await clientPromise;
+      const db = client.db(DATABASE_NAME);
+      const user = await db
+        .collection<UserRecord>("users")
+        .findOne({ email: email.trim().toLowerCase() });
+
+      if (!user || typeof user.password !== "string" || !verifyPassword(password, user.password)) {
+        throw new ApiError("Invalid credentials", 401, "BACKEND_LOGIN_FAILED");
+      }
+
+      payload = {
+        user: {
+          id: user._id.toHexString(),
+          name: user.name,
+          email: user.email,
+        },
+      };
     }
 
     const token = signAuthToken({
-      userId: payload.user.id,
-      email: payload.user.email,
-      name: payload.user.name,
+      userId: payload.user!.id,
+      email: payload.user!.email,
+      name: payload.user!.name,
+      backendToken: payload.token,
     });
 
     const response = successResponse({
       user: {
-        _id: payload.user.id,
-        name: payload.user.name,
-        email: payload.user.email,
-        onboardingCompleted: true,
+        _id: payload.user!.id,
+        name: payload.user!.name,
+        email: payload.user!.email,
+        onboardingCompleted: false,
       },
     });
 
@@ -91,15 +102,17 @@ export async function POST(request: Request) {
       maxAge: 60 * 60 * 24 * 7,
     });
 
-    response.cookies.set({
-      name: BACKEND_AUTH_COOKIE_NAME,
-      value: payload.token,
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 7,
-    });
+    if (payload.token) {
+      response.cookies.set({
+        name: BACKEND_AUTH_COOKIE_NAME,
+        value: payload.token,
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 7,
+      });
+    }
 
     return response;
   } catch (error) {

@@ -16,7 +16,8 @@
   min-height: 260px;
   border-radius: 22px;
   padding: 1rem;
-  background: var(--surface-elevated);
+  background: linear-gradient(180deg, var(--surface-elevated), rgba(16, 28, 39, 0.92));
+  border: 1px solid var(--border);
 }
 
 .emptyState {
@@ -54,6 +55,12 @@
   width: 100%;
   border-radius: 18px 18px 6px 6px;
   background: linear-gradient(180deg, var(--accent), var(--primary));
+  box-shadow: 0 10px 22px rgba(89, 204, 180, 0.25);
+}
+
+.barPlaceholder {
+  opacity: 0.6;
+  background: linear-gradient(180deg, rgba(242, 166, 90, 0.72), rgba(89, 204, 180, 0.66));
 }
 
 .chartPie {
@@ -69,7 +76,8 @@
   align-items: center;
   border-radius: 18px;
   padding: 0.85rem 0.95rem;
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(143, 216, 255, 0.18);
 }
 
 .pieRow strong,
@@ -80,4 +88,8 @@
 .pieRow div span {
   color: var(--muted-text);
   font-size: 0.82rem;
+}
+
+.pieRowPlaceholder {
+  opacity: 0.82;
 }

@@ -8,6 +8,7 @@ interface AuthTokenPayload {
   userId: string;
   email: string;
   name: string;
+  backendToken?: string;
   exp: number;
 }
 
@@ -44,6 +45,7 @@ export const signAuthToken = (payload: {
   userId: string;
   email: string;
   name: string;
+  backendToken?: string;
 }): string => {
   const header = base64UrlEncode(JSON.stringify({ alg: "HS256", typ: "JWT" }));
   const exp = Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7;
@@ -103,6 +105,16 @@ export const getBackendTokenFromRequest = (request: Request): string => {
 
   if (tokenCookie) {
     return tokenCookie.replace(`${BACKEND_AUTH_COOKIE_NAME}=`, "");
+  }
+
+  try {
+    const authToken = getTokenFromRequest(request);
+    const payload = verifyAuthToken(authToken);
+    if (payload.backendToken && payload.backendToken.trim().length > 0) {
+      return payload.backendToken;
+    }
+  } catch {
+    // fall through to standardized auth error
   }
 
   throw new ApiError("Backend authentication required", 401, "AUTH_REQUIRED");

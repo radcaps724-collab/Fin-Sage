@@ -1,252 +1,341 @@
 .page {
   min-height: 100vh;
-  padding: 1.5rem;
   display: grid;
   place-items: center;
-}
-
-.shell {
-  width: min(1180px, 100%);
-  display: grid;
-  grid-template-columns: minmax(320px, 0.95fr) minmax(0, 1.15fr);
-  gap: 1.25rem;
-}
-
-.summaryPanel,
-.formPanel {
-  border: 1px solid var(--border);
-  border-radius: 32px;
-  background: var(--surface);
-  box-shadow: var(--shadow-sm);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-}
-
-.summaryPanel {
-  padding: 2rem;
-  display: grid;
-  gap: 1.15rem;
-  align-content: start;
-}
-
-.badge,
-.kicker {
-  display: inline-flex;
-  width: fit-content;
-  align-items: center;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  padding: 0.35rem 0.8rem;
-  font-size: 0.76rem;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--muted-text);
-}
-
-.summaryPanel h1,
-.formHeader h2 {
-  margin: 0;
-}
-
-.summaryPanel h1 {
-  font-size: clamp(2.3rem, 5vw, 4rem);
-  line-height: 0.98;
-}
-
-.summaryPanel p,
-.formHeader p {
-  margin: 0;
-  color: var(--muted-text);
-}
-
-.progressWrap {
-  display: grid;
-  gap: 0.55rem;
-}
-
-.progressMeta {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.8rem;
-  color: var(--muted-text);
-}
-
-.progressBar {
-  height: 10px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.05);
+  position: relative;
+  background: #000;
+  color: #f6f0ff;
   overflow: hidden;
 }
 
-.progressBar span {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(135deg, var(--primary), var(--accent));
-}
-
-.stepList,
-.snapshot {
-  display: grid;
-  gap: 0.7rem;
-}
-
-.stepItem {
-  display: flex;
-  gap: 0.8rem;
-  align-items: center;
-  padding: 0.9rem 1rem;
-  border-radius: 20px;
-  border: 1px solid transparent;
-  color: var(--muted-text);
-  background: rgba(255, 255, 255, 0.02);
-}
-
-.stepItem strong {
-  width: 34px;
-  height: 34px;
-  flex: 0 0 auto;
+.bgGlow {
+  position: absolute;
+  width: 640px;
+  height: 640px;
   border-radius: 50%;
+  background: radial-gradient(circle, rgba(141, 61, 255, 0.24), rgba(0, 0, 0, 0));
+  filter: blur(22px);
+  animation: glowPulse 2200ms ease-in-out infinite;
+}
+
+.sliderShell {
+  position: relative;
+  z-index: 1;
+  width: min(740px, calc(100% - 2rem));
+  padding: 1.2rem 1.4rem 1.7rem;
   display: grid;
-  place-items: center;
-  background: rgba(255, 255, 255, 0.06);
+  row-gap: 0.95rem;
+  justify-items: center;
 }
 
-.stepItemActive {
-  color: var(--text);
-  border-color: var(--border);
-  background: linear-gradient(135deg, rgba(88, 204, 180, 0.12), rgba(242, 166, 90, 0.12));
+.topRail {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  width: min(620px, 100%);
 }
 
-.snapshot {
-  padding-top: 0.4rem;
-}
-
-.snapshot div {
+.progressRail {
+  width: 100%;
   display: grid;
-  gap: 0.18rem;
-  padding-top: 0.8rem;
-  border-top: 1px solid var(--border);
+  grid-template-columns: repeat(11, minmax(0, 1fr));
+  gap: 0.36rem;
 }
 
-.snapshot span {
-  color: var(--muted-text);
-  font-size: 0.82rem;
+.progressRail span {
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
 }
 
-.formPanel {
-  padding: 1.8rem;
+.progressRail .progressActive {
+  background: linear-gradient(135deg, #bf92ff, #8d3dff);
+}
+
+.stepText {
+  color: #bcafd3;
+  font-size: 0.94rem;
+  min-width: 52px;
+  text-align: right;
+}
+
+.slideViewport {
+  width: 100%;
   display: grid;
-  gap: 1.1rem;
+  justify-items: center;
+  row-gap: 0.8rem;
+  transform: translateX(0) scale(1);
+  opacity: 1;
 }
 
-.formHeader {
-  display: grid;
-  gap: 0.35rem;
+.slideTitle {
+  margin: 0.2rem 0 0;
+  font-size: clamp(1.9rem, 4.5vw, 2.55rem);
+  color: #f8f2ff;
+  text-align: center;
+  line-height: 1.16;
+  max-width: 24ch;
 }
 
-.questionGrid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.9rem;
+.slideText {
+  margin: 0;
+  font-size: 1rem;
+  color: #d9c8ef;
+  text-align: center;
+  max-width: 50ch;
 }
 
-.questionGrid label {
+.formWrap {
+  width: min(620px, 100%);
+  margin-top: 0.45rem;
+}
+
+.fieldBlock {
   display: grid;
   gap: 0.45rem;
 }
 
-.questionGrid span {
-  color: var(--muted-text);
+.fieldBlock > span {
+  color: #c2b5d9;
   font-size: 0.9rem;
 }
 
-.questionGrid input,
-.questionGrid select {
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  background: var(--surface-elevated);
-  color: var(--text);
+.fieldBlock input,
+.fieldBlock select {
+  border: 1px solid rgba(187, 152, 246, 0.36);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #f5efff;
   padding: 0.92rem 1rem;
 }
 
-.toggleField {
-  align-content: start;
+.fieldBlock select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 2.2rem;
+  background-image: linear-gradient(45deg, transparent 50%, #cbb0ef 50%),
+    linear-gradient(135deg, #cbb0ef 50%, transparent 50%);
+  background-position: calc(100% - 18px) calc(50% - 3px), calc(100% - 12px) calc(50% - 3px);
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
 }
 
-.toggleRow {
+.fieldBlock select option {
+  background: #130c1e;
+  color: #f5efff;
+}
+
+.fieldBlock input:disabled {
+  opacity: 0.55;
+}
+
+.choiceRow {
   display: flex;
   gap: 0.55rem;
 }
 
-.choiceChip {
-  border: 1px solid var(--border);
+.choiceBtn {
+  border: 1px solid rgba(187, 152, 246, 0.36);
   border-radius: 999px;
   padding: 0.72rem 1rem;
-  color: var(--text);
-  background: var(--surface-elevated);
+  color: #f2e8ff;
+  background: rgba(255, 255, 255, 0.03);
+  font-weight: 700;
   cursor: pointer;
 }
 
-.choiceChipActive {
-  color: #081017;
-  background: linear-gradient(135deg, var(--primary), var(--accent));
+.choiceActive {
+  color: #1b0d2b;
+  background: linear-gradient(135deg, #bf92ff, #8d3dff);
 }
 
-.fullWidth {
-  grid-column: 1 / -1;
-}
-
-.actions {
+.actionsRow {
+  margin-top: 0.1rem;
   display: flex;
-  justify-content: space-between;
-  gap: 0.8rem;
-  margin-top: 0.35rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.72rem;
+  width: min(620px, 100%);
 }
 
-.primary,
-.secondary {
+.prevBtn,
+.nextBtn {
   border: 0;
   border-radius: 999px;
-  padding: 0.92rem 1.2rem;
+  padding: 0.86rem 1.2rem;
   font-weight: 800;
   cursor: pointer;
 }
 
-.secondary {
-  color: var(--text);
-  background: var(--surface-elevated);
-  border: 1px solid var(--border);
+.prevBtn {
+  color: #e9dcff;
+  border: 1px solid rgba(187, 152, 246, 0.4);
+  background: rgba(255, 255, 255, 0.02);
 }
 
-.primary {
-  color: #081017;
-  background: linear-gradient(135deg, var(--primary), var(--accent));
+.nextBtn {
+  color: #1b0d2b;
+  background: linear-gradient(135deg, #bf92ff, #8d3dff);
 }
 
-.secondary:disabled,
-.primary:disabled {
+.prevBtn:disabled,
+.nextBtn:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
-  opacity: 0.65;
 }
 
 .error {
-  color: var(--danger);
   margin: 0;
+  color: #ff9db8;
+  text-align: center;
 }
 
-@media (max-width: 980px) {
-  .shell {
-    grid-template-columns: 1fr;
+.slideExitNext {
+  animation: slideOutNext 230ms ease-in forwards;
+}
+
+.slideEnterNext {
+  animation: slideInNext 420ms cubic-bezier(0.22, 0.8, 0.28, 1) forwards;
+}
+
+.slideExitPrev {
+  animation: slideOutPrev 230ms ease-in forwards;
+}
+
+.slideEnterPrev {
+  animation: slideInPrev 420ms cubic-bezier(0.22, 0.8, 0.28, 1) forwards;
+}
+
+@keyframes glowPulse {
+  0%,
+  100% {
+    transform: scale(0.95);
+    opacity: 0.72;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 1;
   }
 }
 
-@media (max-width: 720px) {
-  .questionGrid {
-    grid-template-columns: 1fr;
+@keyframes slideOutNext {
+  from {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-26px) scale(0.985);
+  }
+}
+
+@keyframes slideInNext {
+  from {
+    opacity: 0;
+    transform: translateX(34px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes slideOutPrev {
+  from {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(26px) scale(0.985);
+  }
+}
+
+@keyframes slideInPrev {
+  from {
+    opacity: 0;
+    transform: translateX(-34px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+html[data-theme="light"] .page {
+  background: #ffffff;
+  color: #241834;
+}
+
+html[data-theme="light"] .bgGlow {
+  background: radial-gradient(circle, rgba(141, 61, 255, 0.14), rgba(255, 255, 255, 0));
+}
+
+html[data-theme="light"] .slideTitle {
+  color: #241834;
+}
+
+html[data-theme="light"] .slideText,
+html[data-theme="light"] .stepText,
+html[data-theme="light"] .fieldBlock > span {
+  color: #6e6080;
+}
+
+html[data-theme="light"] .fieldBlock input,
+html[data-theme="light"] .fieldBlock select {
+  background: #f9f7fd;
+  color: #1f1431;
+  border: 1px solid #dfcbfb;
+}
+
+html[data-theme="light"] .fieldBlock select {
+  background-image: linear-gradient(45deg, transparent 50%, #7e60ab 50%),
+    linear-gradient(135deg, #7e60ab 50%, transparent 50%);
+}
+
+html[data-theme="light"] .fieldBlock select option {
+  background: #ffffff;
+  color: #1f1431;
+}
+
+html[data-theme="light"] .choiceBtn {
+  color: #5b447d;
+  border-color: #dac3fb;
+  background: #f9f5ff;
+}
+
+html[data-theme="light"] .choiceActive {
+  color: #1b0d2b;
+  background: linear-gradient(135deg, #bf92ff, #8d3dff);
+}
+
+html[data-theme="light"] .prevBtn {
+  color: #5b447d;
+  border-color: #dac3fb;
+  background: #f9f5ff;
+}
+
+@media (max-width: 640px) {
+  .sliderShell {
+    width: min(420px, calc(100% - 1.3rem));
+    padding: 0.95rem 1rem 1.2rem;
   }
 
-  .actions {
-    flex-direction: column-reverse;
+  .topRail,
+  .formWrap,
+  .actionsRow {
+    width: 100%;
+  }
+
+  .progressRail {
+    gap: 0.25rem;
+  }
+
+  .slideTitle {
+    font-size: clamp(1.7rem, 7vw, 2.2rem);
+  }
+
+  .slideText {
+    font-size: 0.96rem;
   }
 }

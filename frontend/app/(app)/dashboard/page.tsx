@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { SpendingChart } from "@/components/SpendingChart";
 import { getCurrentUser, getOnboardingStatus, getTransactions, type Transaction } from "@/lib/api";
 import { formatCurrency, formatDate } from "@/lib/format";
 import type { OnboardingProfile } from "@/types/models";
@@ -71,6 +72,53 @@ export default function DashboardPage() {
     };
   }, [profile, transactions]);
 
+  const analytics = useMemo(() => {
+    const expenseTransactions = transactions.filter((item) => item.type === "expense");
+    const incomeTransactions = transactions.filter((item) => item.type === "income");
+
+    const avgExpense =
+      expenseTransactions.length > 0 ? metrics.expenses / expenseTransactions.length : 0;
+    const avgIncome = incomeTransactions.length > 0 ? metrics.income / incomeTransactions.length : 0;
+
+    const categoryTotals = expenseTransactions.reduce<Record<string, number>>((acc, item) => {
+      acc[item.category] = (acc[item.category] ?? 0) + item.amount;
+      return acc;
+    }, {});
+
+    const categoryRanking = Object.entries(categoryTotals)
+      .map(([category, total]) => ({ category, total }))
+      .sort((a, b) => b.total - a.total);
+
+    const topCategory = categoryRanking[0];
+    const topCategoryShare =
+      metrics.expenses > 0 && topCategory ? (topCategory.total / metrics.expenses) * 100 : 0;
+
+    const monthlyExpenseSummary = expenseTransactions.reduce<Record<string, number>>((acc, item) => {
+      const month = item.date.slice(0, 7);
+      acc[month] = (acc[month] ?? 0) + item.amount;
+      return acc;
+    }, {});
+
+    const trendSeries = Object.entries(monthlyExpenseSummary)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .slice(-6)
+      .map(([month, value]) => ({
+        label: month,
+        value,
+      }));
+
+    const savingsRate = metrics.income > 0 ? (metrics.balance / metrics.income) * 100 : 0;
+
+    return {
+      avgExpense,
+      avgIncome,
+      categoryRanking,
+      topCategoryShare,
+      trendSeries,
+      savingsRate,
+    };
+  }, [metrics.balance, metrics.expenses, metrics.income, transactions]);
+
   const recentTransactions = transactions.slice(0, 5);
   const currency = profile?.currency;
 
@@ -101,59 +149,27 @@ export default function DashboardPage() {
         <article className={styles.metric}>
           <span>Net balance</span>
           <strong>{formatCurrency(metrics.balance, currency)}</strong>
+          <small>{analytics.savingsRate.toFixed(1)}% savings efficiency</small>
         </article>
         <article className={styles.metric}>
           <span>Total income</span>
           <strong>{formatCurrency(metrics.income, currency)}</strong>
+          <small>Avg entry {formatCurrency(analytics.avgIncome, currency)}</small>
         </article>
         <article className={styles.metric}>
           <span>Total expenses</span>
           <strong>{formatCurrency(metrics.expenses, currency)}</strong>
+          <small>Avg entry {formatCurrency(analytics.avgExpense, currency)}</small>
         </article>
         <article className={styles.metric}>
           <span>Fixed commitments</span>
           <strong>{metrics.commitmentsShare.toFixed(1)}%</strong>
+          <small>of declared monthly income</small>
         </article>
       </div>
 
       <div className={styles.contentGrid}>
-        <article className={styles.panel}>
-          <div className={styles.panelHeader}>
-            <h2>Your onboarding snapshot</h2>
-            <p>This is the context powering your current recommendations.</p>
-          </div>
-          <div className={styles.detailGrid}>
-            <div>
-              <span>Occupation</span>
-              <strong>{profile?.occupation ?? "Not set yet"}</strong>
-            </div>
-            <div>
-              <span>Dependents</span>
-              <strong>{profile?.dependents ?? 0}</strong>
-            </div>
-            <div>
-              <span>Spending style</span>
-              <strong>{profile?.spendingStyle ?? "Balanced"}</strong>
-            </div>
-            <div>
-              <span>Overspend area</span>
-              <strong>{profile?.overspendArea ?? "Don't know"}</strong>
-            </div>
-            <div>
-              <span>Monthly commitments</span>
-              <strong>{formatCurrency(profile?.fixedCommitments ?? 0, currency)}</strong>
-            </div>
-            <div>
-              <span>Budget status</span>
-              <strong>
-                {metrics.budgetUsage === null
-                  ? "No budget set"
-                  : `${metrics.budgetUsage.toFixed(1)}% used`}
-              </strong>
-            </div>
-          </div>
-        </article>
-
+        <SpendingChart variant="bar" title="Expense trend (last 6 months)" data={analytics.trendSeries} />
         <article className={styles.panel}>
           <div className={styles.panelHeader}>
             <h2>Recent activity</h2>
@@ -175,6 +191,30 @@ export default function DashboardPage() {
                   <div className={styles.activityMeta}>
                     <strong>{formatCurrency(transaction.amount, currency)}</strong>
                     <span>{formatDate(transaction.date)}</span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </article>
+
+        <article className={styles.panel}>
+          <div className={styles.panelHeader}>
+            <h2>Top spending categories</h2>
+            <p>Simple ranking of where most of your expenses go.</p>
+          </div>
+          <div className={styles.rankingList}>
+            {analytics.categoryRanking.length === 0 ? (
+              <p className={styles.emptyState}>No expense categories yet.</p>
+            ) : (
+              analytics.categoryRanking.slice(0, 5).map((item, index) => (
+                <div key={item.category} className={styles.rankingRow}>
+                  <div>
+                    <span className={styles.rankBadge}>#{index + 1}</span>
+                    <strong>{item.category}</strong>
+                  </div>
+                  <div className={styles.rankingMeta}>
+                    <strong>{formatCurrency(item.total, currency)}</strong>
                   </div>
                 </div>
               ))
