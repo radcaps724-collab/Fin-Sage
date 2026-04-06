@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { transcribeVoiceText } from "@/lib/api";
 import styles from "@/styles/components/VoiceButton.module.css";
 
 declare global {
@@ -36,29 +37,39 @@ interface SpeechRecognitionStatic {
 export interface VoiceButtonProps {
   onTranscript: (text: string) => void;
   onLiveTranscript?: (text: string) => void;
+  onError?: (message: string) => void;
   floating?: boolean;
 }
 
 export function VoiceButton({
   onTranscript,
   onLiveTranscript,
+  onError,
   floating = false,
 }: VoiceButtonProps) {
   const [isListening, setIsListening] = useState(false);
-  const [isSupported] = useState(
-    () =>
-      typeof window === "undefined" ||
-      Boolean(window.SpeechRecognition ?? window.webkitSpeechRecognition)
-  );
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isSupported, setIsSupported] = useState(false);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
-  const handleTranscript = useEffectEvent(onTranscript);
-  const handleLiveTranscript = useEffectEvent((text: string) => {
-    onLiveTranscript?.(text);
-  });
+  const onTranscriptRef = useRef(onTranscript);
+  const onLiveTranscriptRef = useRef(onLiveTranscript);
+  const onErrorRef = useRef(onError);
 
   useEffect(() => {
+    onTranscriptRef.current = onTranscript;
+    onLiveTranscriptRef.current = onLiveTranscript;
+    onErrorRef.current = onError;
+  }, [onError, onLiveTranscript, onTranscript]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
     const SpeechRecognitionCtor =
       window.SpeechRecognition ?? window.webkitSpeechRecognition;
+
+    setIsSupported(Boolean(SpeechRecognitionCtor));
 
     if (!SpeechRecognitionCtor) {
       return;
@@ -69,12 +80,12 @@ export function VoiceButton({
     recognition.interimResults = true;
     recognition.continuous = false;
 
-    recognition.onresult = (event) => {
+    recognition.onresult = async (event) => {
       const liveTranscript = Array.from(event.results)
         .map((result) => result[0]?.transcript ?? "")
         .join(" ")
         .trim();
-      handleLiveTranscript(liveTranscript);
+      onLiveTranscriptRef.current?.(liveTranscript);
 
       const finalTranscript = Array.from(event.results)
         .filter((result) => result.isFinal)
@@ -83,12 +94,27 @@ export function VoiceButton({
         .trim();
 
       if (finalTranscript) {
-        handleTranscript(finalTranscript);
+        setIsProcessing(true);
+        try {
+          const transcribed = await transcribeVoiceText(finalTranscript);
+          onTranscriptRef.current(transcribed.text);
+        } catch (error) {
+          onTranscriptRef.current(finalTranscript);
+          onErrorRef.current?.(
+            error instanceof Error
+              ? error.message
+              : "Could not normalize speech input. Using raw transcript."
+          );
+        } finally {
+          setIsProcessing(false);
+        }
       }
     };
 
     recognition.onerror = () => {
       setIsListening(false);
+      setIsProcessing(false);
+      onErrorRef.current?.("Speech recognition failed. Please try again.");
     };
 
     recognition.onend = () => {
@@ -104,16 +130,23 @@ export function VoiceButton({
   }, []);
 
   const handleClick = () => {
-    if (!recognitionRef.current) {
+    const recognition = recognitionRef.current;
+    if (!recognition) {
       return;
     }
 
     if (isListening) {
-      recognitionRef.current.stop();
+      recognition.stop();
       setIsListening(false);
     } else {
-      recognitionRef.current.start();
-      setIsListening(true);
+      try {
+        recognition.start();
+        setIsListening(true);
+      } catch {
+        // Some browsers throw if start() is called while already active.
+        setIsListening(false);
+        onErrorRef.current?.("Microphone could not be started. Check mic permissions.");
+      }
     }
   };
 
@@ -128,11 +161,12 @@ export function VoiceButton({
   return (
     <button
       type="button"
-      className={`${styles.button} ${floating ? styles.floating : ""} ${isListening ? styles.listening : ""}`}
-      aria-label={isListening ? "Stop listening" : "Start listening"}
+      className={`${styles.button} ${floating ? styles.floating : ""} ${isListening || isProcessing ? styles.listening : ""}`}
+      aria-label={isListening ? "Stop listening" : isProcessing ? "Processing speech" : "Start listening"}
       onClick={handleClick}
+      disabled={isProcessing}
     >
-      <span className={styles.label}>{isListening ? "Stop" : "Talk"}</span>
+      <span className={styles.label}>{isListening ? "Stop" : isProcessing ? "Processing" : "Talk"}</span>
     </button>
   );
 }

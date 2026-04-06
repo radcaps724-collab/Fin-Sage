@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from "crypto";
 import { ApiError } from "@/lib/api-errors";
 
 export const AUTH_COOKIE_NAME = "token";
+export const BACKEND_AUTH_COOKIE_NAME = "backend_token";
 
 interface AuthTokenPayload {
   userId: string;
@@ -91,6 +92,20 @@ export const getTokenFromRequest = (request: Request): string => {
   }
 
   throw new ApiError("Authentication required", 401, "AUTH_REQUIRED");
+};
+
+export const getBackendTokenFromRequest = (request: Request): string => {
+  const cookieHeader = request.headers.get("cookie") ?? "";
+  const tokenCookie = cookieHeader
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(`${BACKEND_AUTH_COOKIE_NAME}=`));
+
+  if (tokenCookie) {
+    return tokenCookie.replace(`${BACKEND_AUTH_COOKIE_NAME}=`, "");
+  }
+
+  throw new ApiError("Backend authentication required", 401, "AUTH_REQUIRED");
 };
 
 export const requireAuthUser = (request: Request): AuthTokenPayload =>

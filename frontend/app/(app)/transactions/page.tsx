@@ -3,11 +3,12 @@
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { VoiceButton } from "@/components/VoiceButton";
 import {
+  confirmVoiceTransaction,
   createTransaction,
   getOnboardingStatus,
   getTransactions,
   sendVoiceText,
-  type ParsedVoiceResult,
+  type VoiceProcessResult,
   type Transaction,
 } from "@/lib/api";
 import { formatCurrency, formatDate } from "@/lib/format";
@@ -22,7 +23,8 @@ export default function TransactionsPage() {
   const [categoryFilter, setCategoryFilter] = useState("");
   const [dateFilter, setDateFilter] = useState("");
   const [liveTranscript, setLiveTranscript] = useState("");
-  const [voiceResult, setVoiceResult] = useState<ParsedVoiceResult | null>(null);
+  const [manualText, setManualText] = useState("");
+  const [voiceResult, setVoiceResult] = useState<VoiceProcessResult | null>(null);
   const [insight, setInsight] = useState("");
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
@@ -97,23 +99,65 @@ export default function TransactionsPage() {
     };
   }, [deferredCategoryFilter, deferredDateFilter]);
 
+  const applyVoiceResult = (parsed: VoiceProcessResult) => {
+    setVoiceResult(parsed);
+
+    if (parsed.intent === "log_transaction" && parsed.transaction) {
+      const transactionDate = today;
+      setType(parsed.transaction.type);
+      setAmount(parsed.transaction.amount.toString());
+      setCategory(
+        typeof parsed.transaction.category === "string" ? parsed.transaction.category : ""
+      );
+      setDate(transactionDate);
+      setDescription(
+        typeof parsed.transaction.description === "string"
+          ? parsed.transaction.description
+          : ""
+      );
+      setInsight(parsed.insight ?? parsed.message);
+      setStatus(parsed.message || "Voice entry parsed. Review it or save it immediately.");
+      return;
+    }
+
+    if (parsed.insight) {
+      setInsight(parsed.insight);
+    }
+    setStatus(parsed.message || "Voice request completed.");
+  };
+
   const applyVoiceTranscript = async (text: string) => {
+    setError("");
+    setStatus("");
+    setIsParsing(true);
+    setManualText(text);
+
+    try {
+      const parsed = await sendVoiceText(text, "speech");
+      applyVoiceResult(parsed);
+    } catch (voiceError) {
+      setError(voiceError instanceof Error ? voiceError.message : "Unable to parse voice input.");
+    } finally {
+      setIsParsing(false);
+    }
+  };
+
+  const interpretManualText = async () => {
+    const text = manualText.trim();
+    if (!text) {
+      setError("Type a transaction or insight request first.");
+      return;
+    }
+
     setError("");
     setStatus("");
     setIsParsing(true);
 
     try {
-      const parsed = await sendVoiceText(text);
-      setVoiceResult(parsed);
-      setType(parsed.transaction.type);
-      setAmount(parsed.transaction.amount.toString());
-      setCategory(parsed.transaction.category);
-      setDate(parsed.transaction.date);
-      setDescription(parsed.transaction.description);
-      setInsight(parsed.insight);
-      setStatus("Voice entry parsed. Review it or save it immediately.");
-    } catch (voiceError) {
-      setError(voiceError instanceof Error ? voiceError.message : "Unable to parse voice input.");
+      const parsed = await sendVoiceText(text, "manual");
+      applyVoiceResult(parsed);
+    } catch (manualError) {
+      setError(manualError instanceof Error ? manualError.message : "Unable to interpret manual text.");
     } finally {
       setIsParsing(false);
     }
@@ -123,12 +167,14 @@ export default function TransactionsPage() {
     setError("");
     setStatus("");
 
+    const safeCategory = typeof category === "string" ? category.trim() : "";
+    const safeDescription = typeof description === "string" ? description.trim() : "";
     const parsedAmount = Number(amount);
     if (
       !Number.isFinite(parsedAmount) ||
       parsedAmount <= 0 ||
-      !category.trim() ||
-      !description.trim()
+      !safeCategory ||
+      !safeDescription
     ) {
       setError("Provide a valid amount, category, and description before saving.");
       return;
@@ -136,12 +182,34 @@ export default function TransactionsPage() {
 
     setIsSaving(true);
     try {
+      if (
+        voiceResult?.intent === "log_transaction" &&
+        typeof voiceResult.inputId === "number" &&
+        voiceResult.requiresConfirmation !== false
+      ) {
+        const confirmResult = await confirmVoiceTransaction({
+          inputId: voiceResult.inputId,
+          confirmed: true,
+          transaction: {
+            type,
+            amount: parsedAmount,
+            category: safeCategory,
+            description: safeDescription,
+            person: voiceResult.transaction?.person ?? null,
+          },
+        });
+
+        if (!confirmResult.confirmed) {
+          throw new Error(confirmResult.message || "Transaction was not confirmed.");
+        }
+      }
+
       await createTransaction({
         type,
         amount: parsedAmount,
-        category: category.trim(),
+        category: safeCategory,
         date,
-        description: description.trim(),
+        description: safeDescription,
       });
 
       setVoiceResult(null);
@@ -223,13 +291,35 @@ export default function TransactionsPage() {
           </div>
 
           <div className={styles.voiceDock}>
-            <VoiceButton onTranscript={applyVoiceTranscript} onLiveTranscript={setLiveTranscript} />
+            <VoiceButton
+              onTranscript={applyVoiceTranscript}
+              onLiveTranscript={setLiveTranscript}
+              onError={setError}
+            />
             <div className={styles.voiceText}>
               <strong>{isParsing ? "Listening for a usable transaction..." : "Talk to FinSage"}</strong>
               <span>
                 Try: <em>I spent 450 on food yesterday</em> or <em>Salary credited 52000 today</em>.
               </span>
             </div>
+          </div>
+
+          <div className={styles.manualInterpreter}>
+            <input
+              type="text"
+              value={manualText}
+              onChange={(event) => setManualText(event.target.value)}
+              placeholder="Type a command: I spent 350 on food"
+              aria-label="Manual command input"
+            />
+            <button
+              type="button"
+              className={styles.secondaryAction}
+              onClick={interpretManualText}
+              disabled={isParsing}
+            >
+              {isParsing ? "Interpreting..." : "Interpret text"}
+            </button>
           </div>
 
           {liveTranscript && <p className={styles.recognized}>Live transcript: {liveTranscript}</p>}
@@ -239,22 +329,31 @@ export default function TransactionsPage() {
 
           {voiceResult && (
             <div className={styles.previewGrid}>
-              <div>
-                <span>Type</span>
-                <strong>{voiceResult.transaction.type}</strong>
-              </div>
-              <div>
-                <span>Category</span>
-                <strong>{voiceResult.transaction.category}</strong>
-              </div>
-              <div>
-                <span>Amount</span>
-                <strong>{formatCurrency(voiceResult.transaction.amount, currency)}</strong>
-              </div>
-              <div>
-                <span>Date</span>
-                <strong>{formatDate(voiceResult.transaction.date)}</strong>
-              </div>
+              {voiceResult.transaction ? (
+                <>
+                  <div>
+                    <span>Type</span>
+                    <strong>{voiceResult.transaction.type}</strong>
+                  </div>
+                  <div>
+                    <span>Category</span>
+                    <strong>{voiceResult.transaction.category}</strong>
+                  </div>
+                  <div>
+                    <span>Amount</span>
+                    <strong>{formatCurrency(voiceResult.transaction.amount, currency)}</strong>
+                  </div>
+                  <div>
+                    <span>Date</span>
+                    <strong>{formatDate(date)}</strong>
+                  </div>
+                </>
+              ) : (
+                <div>
+                  <span>Intent</span>
+                  <strong>{voiceResult.intent}</strong>
+                </div>
+              )}
             </div>
           )}
 
@@ -290,13 +389,13 @@ export default function TransactionsPage() {
                 type="number"
                 min="0"
                 step="0.01"
-                value={amount}
+                value={amount ?? ""}
                 onChange={(event) => setAmount(event.target.value)}
               />
             </label>
             <label>
               <span>Category</span>
-              <input value={category} onChange={(event) => setCategory(event.target.value)} />
+              <input value={category ?? ""} onChange={(event) => setCategory(event.target.value)} />
             </label>
             <label>
               <span>Date</span>
@@ -305,7 +404,7 @@ export default function TransactionsPage() {
             <label className={styles.fullWidth}>
               <span>Description</span>
               <input
-                value={description}
+                value={description ?? ""}
                 onChange={(event) => setDescription(event.target.value)}
               />
             </label>

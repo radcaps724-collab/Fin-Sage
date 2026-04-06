@@ -13,15 +13,29 @@ export interface AuthUser {
   onboardingCompleted: boolean;
 }
 
-export interface ParsedVoiceResult {
-  transaction: {
-    type: "expense" | "income";
-    amount: number;
-    category: string;
-    date: string;
-    description: string;
-  };
-  insight: string;
+export interface ParsedVoiceTransaction {
+  type: "expense" | "income";
+  amount: number;
+  category: string;
+  description: string;
+  person?: string | null;
+}
+
+export interface VoiceProcessResult {
+  intent: "log_transaction" | "get_insights" | "unknown" | string;
+  message: string;
+  transaction: ParsedVoiceTransaction | null;
+  insight: string | null;
+  query?: string | null;
+  inputId?: number | null;
+  source?: "speech" | "manual";
+  requiresConfirmation?: boolean;
+}
+
+export interface SpeechToTextResult {
+  text: string;
+  source: "browser";
+  language: string;
 }
 
 export interface InsightPoint {
@@ -159,14 +173,41 @@ export async function submitOnboarding(data: OnboardingInput): Promise<{ saved: 
   return parseApiResponse<{ saved: true }>(response);
 }
 
-export async function sendVoiceText(text: string): Promise<ParsedVoiceResult> {
+export async function sendVoiceText(
+  text: string,
+  source: "speech" | "manual" = "speech"
+): Promise<VoiceProcessResult> {
   const response = await fetch(`${API_BASE}/api/voice/parse`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ text, source }),
+  });
+  return parseApiResponse<VoiceProcessResult>(response);
+}
+
+export async function confirmVoiceTransaction(input: {
+  inputId: number;
+  confirmed?: boolean;
+  transaction?: ParsedVoiceTransaction;
+}): Promise<{ confirmed: boolean; message: string }> {
+  const response = await fetch(`${API_BASE}/api/voice/confirm`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    credentials: "include",
+    body: JSON.stringify(input),
+  });
+  return parseApiResponse<{ confirmed: boolean; message: string }>(response);
+}
+
+export async function transcribeVoiceText(text: string): Promise<SpeechToTextResult> {
+  const response = await fetch(`${API_BASE}/api/voice/transcribe`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     credentials: "include",
     body: JSON.stringify({ text }),
   });
-  return parseApiResponse<ParsedVoiceResult>(response);
+  return parseApiResponse<SpeechToTextResult>(response);
 }
 
 export async function createTransaction(

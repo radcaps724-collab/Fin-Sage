@@ -18,8 +18,8 @@ export default function RegisterPage() {
     event.preventDefault();
     setError("");
 
-    if (!name.trim() || !email.trim() || password.length < 6) {
-      setError("Enter a valid name, email, and password with at least 6 characters.");
+    if (!name.trim() || !email.trim() || password.length < 8) {
+      setError("Enter a valid name, email, and password with at least 8 characters.");
       return;
     }
 
@@ -95,7 +95,7 @@ export default function RegisterPage() {
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              placeholder="Minimum 6 characters"
+              placeholder="Minimum 8 characters"
               autoComplete="new-password"
             />
           </label>

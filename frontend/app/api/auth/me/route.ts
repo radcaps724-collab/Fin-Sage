@@ -1,27 +1,50 @@
-import { asApiError } from "@/lib/api-errors";
+import { ApiError, asApiError } from "@/lib/api-errors";
 import { errorResponse, successResponse } from "@/lib/api-response";
-import { requireAuthUser } from "@/lib/auth";
-import { ObjectId } from "mongodb";
-import clientPromise from "@/lib/mongodb";
-import type { User } from "@/types/models";
+import { getBackendTokenFromRequest, requireAuthUser } from "@/lib/auth";
 
-const DATABASE_NAME = "finsage";
-type UserRecord = Omit<User, "_id"> & { _id: ObjectId };
+const BACKEND_BASE_URL =
+  process.env.BACKEND_URL ?? process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:5000";
+
+interface BackendProfileResponse {
+  user: {
+    id: string;
+    email: string;
+    name: string;
+    monthlyIncome?: number;
+  };
+}
 
 export async function GET(request: Request) {
   try {
-    const user = requireAuthUser(request);
-    const client = await clientPromise;
-    const db = client.db(DATABASE_NAME);
-    const userRecord = await db
-      .collection<UserRecord>("users")
-      .findOne({ _id: new ObjectId(user.userId) });
+    const localUser = requireAuthUser(request);
+    const backendToken = getBackendTokenFromRequest(request);
+
+    const upstream = await fetch(`${BACKEND_BASE_URL}/api/user/profile`, {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${backendToken}`,
+      },
+      cache: "no-store",
+    });
+
+    const payload = (await upstream.json()) as
+      | BackendProfileResponse
+      | { message?: string };
+
+    if (!upstream.ok || !("user" in payload)) {
+      throw new ApiError(
+        ("message" in payload && payload.message) || "Unable to fetch profile",
+        upstream.status,
+        "BACKEND_PROFILE_FAILED"
+      );
+    }
 
     return successResponse({
-      userId: user.userId,
-      email: userRecord?.email ?? user.email,
-      name: userRecord?.name ?? user.name,
-      onboardingCompleted: Boolean(userRecord?.onboardingCompleted),
+      userId: payload.user.id,
+      email: payload.user.email || localUser.email,
+      name: payload.user.name || localUser.name,
+      onboardingCompleted: typeof payload.user.monthlyIncome === "number",
     });
   } catch (error) {
     const apiError = asApiError(error);

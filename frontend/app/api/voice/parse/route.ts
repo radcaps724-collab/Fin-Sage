@@ -1,115 +1,117 @@
 import { ApiError, asApiError } from "@/lib/api-errors";
 import { errorResponse, parseJsonBody, successResponse } from "@/lib/api-response";
-import { requireAuthUser } from "@/lib/auth";
-
-type TransactionType = "expense" | "income";
-
-const CATEGORY_KEYWORDS: Array<{ category: string; keywords: string[] }> = [
-  {
-    category: "Food",
-    keywords: ["food", "lunch", "dinner", "breakfast", "restaurant", "cafe", "groceries"],
-  },
-  {
-    category: "Transport",
-    keywords: ["travel", "trip", "flight", "train", "taxi", "uber", "bus", "metro", "fuel"],
-  },
-  {
-    category: "Shopping",
-    keywords: ["shopping", "shoes", "clothes", "mall", "amazon", "flipkart"],
-  },
-  {
-    category: "Bills",
-    keywords: ["bill", "electricity", "water", "internet", "rent", "gas"],
-  },
-  {
-    category: "Health",
-    keywords: ["hospital", "medicine", "doctor", "pharmacy", "health"],
-  },
-  {
-    category: "Entertainment",
-    keywords: ["movie", "netflix", "spotify", "game", "concert"],
-  },
-  {
-    category: "Salary",
-    keywords: ["salary", "bonus", "payout", "credited"],
-  },
-];
-
-const resolveType = (text: string): TransactionType => {
-  const lower = text.toLowerCase();
-  if (/\b(received|earned|salary|income|got|credited|bonus)\b/.test(lower)) {
-    return "income";
-  }
-  return "expense";
-};
-
-const resolveCategory = (text: string): string => {
-  const lower = text.toLowerCase();
-  const match = CATEGORY_KEYWORDS.find((entry) =>
-    entry.keywords.some((keyword) => lower.includes(keyword))
-  );
-  return match?.category ?? "Other";
-};
-
-const resolveAmount = (text: string): number => {
-  const amountMatch = text.match(/(\d[\d,]*(?:\.\d{1,2})?)/);
-  if (!amountMatch) {
-    throw new ApiError("Unable to detect transaction amount", 400, "PARSE_AMOUNT");
-  }
-  return Number(amountMatch[1].replace(/,/g, ""));
-};
-
-const resolveDate = (text: string): string => {
-  const lower = text.toLowerCase();
-  const today = new Date();
-  if (lower.includes("yesterday")) {
-    today.setDate(today.getDate() - 1);
-  } else if (lower.includes("tomorrow")) {
-    today.setDate(today.getDate() + 1);
-  }
-  return today.toISOString().slice(0, 10);
-};
-
-const createInsight = (category: string, type: TransactionType, amount: number): string => {
-  if (type === "expense" && amount > 5000) {
-    return "This is a high-value expense. Tag it now and review if it was planned or emotional.";
-  }
-  if (category === "Shopping" && type === "expense") {
-    return "Shopping tends to snowball. A category cap will make your insights much sharper.";
-  }
-  if (category === "Food" && type === "expense") {
-    return "Food spend can creep up quietly. Compare dine-out spend against your weekly target.";
-  }
-  if (type === "income") {
-    return "Great income entry. Move a fixed share to savings before the next expense cycle starts.";
-  }
-  return "Saved consistently, this category will become one of your clearest monthly spending signals.";
-};
 
 interface VoiceBody {
   text: string;
+  source?: "speech" | "manual";
 }
+
+interface VoiceParseResponse {
+  intent: "log_transaction" | "get_insights" | "unknown" | string;
+  message: string;
+  transaction: {
+    type: "expense" | "income";
+    amount: number;
+    category: string;
+    description: string;
+    person?: string | null;
+  } | null;
+  insight: string | null;
+  query?: string | null;
+  input_id?: number | null;
+  inputId?: number | null;
+  source?: "speech" | "manual";
+  requires_confirmation?: boolean;
+  requiresConfirmation?: boolean;
+}
+
+const FASTAPI_BASE_URL =
+  process.env.FASTAPI_URL ?? process.env.NEXT_PUBLIC_FASTAPI_URL ?? "http://localhost:8000";
 
 export async function POST(request: Request) {
   try {
-    requireAuthUser(request);
     const body = await parseJsonBody<Partial<VoiceBody>>(request);
     const text = body.text;
     if (typeof text !== "string" || !text.trim()) {
       throw new ApiError("Voice text is required", 400, "VALIDATION_ERROR");
     }
 
-    const cleaned = text.trim();
-    const type = resolveType(cleaned);
-    const amount = resolveAmount(cleaned);
-    const category = resolveCategory(cleaned);
-    const date = resolveDate(cleaned);
-    const description = cleaned;
+    const source = body.source === "manual" ? "manual" : "speech";
 
-    return successResponse({
-      transaction: { type, amount, category, date, description },
-      insight: createInsight(category, type, amount),
+    const upstream = await fetch(`${FASTAPI_BASE_URL}/api/process`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({ text: text.trim(), source }),
     });
+
+    const payload = (await upstream.json()) as VoiceParseResponse | { message?: string; error?: string };
+
+    if (!upstream.ok) {
+      throw new ApiError(
+        ("message" in payload && payload.message) ||
+          ("error" in payload && payload.error) ||
+          "Voice service request failed",
+        upstream.status,
+        "VOICE_PROXY_ERROR"
+      );
+    }
+
+    const responsePayload: VoiceParseResponse =
+      "intent" in payload && payload.intent === "log_transaction" && payload.transaction
+        ? {
+            intent: payload.intent,
+            message: payload.message,
+            transaction: {
+              ...payload.transaction,
+              date: new Date().toISOString().slice(0, 10),
+            },
+            insight: payload.insight ?? null,
+            query: payload.query ?? null,
+            inputId:
+              "input_id" in payload && typeof payload.input_id === "number"
+                ? payload.input_id
+                : "inputId" in payload && typeof payload.inputId === "number"
+                  ? payload.inputId
+                  : null,
+            requiresConfirmation:
+              "requires_confirmation" in payload && typeof payload.requires_confirmation === "boolean"
+                ? payload.requires_confirmation
+                : "requiresConfirmation" in payload && typeof payload.requiresConfirmation === "boolean"
+                  ? payload.requiresConfirmation
+                  : true,
+            source,
+          }
+        : {
+            intent:
+              "intent" in payload && typeof payload.intent === "string"
+                ? payload.intent
+                : "unknown",
+            message:
+              "message" in payload && typeof payload.message === "string"
+                ? payload.message
+                : "Voice request completed.",
+            transaction: null,
+            insight: "insight" in payload && typeof payload.insight === "string" ? payload.insight : null,
+            query: "query" in payload && typeof payload.query === "string" ? payload.query : null,
+            inputId:
+              "input_id" in payload && typeof payload.input_id === "number"
+                ? payload.input_id
+                : "inputId" in payload && typeof payload.inputId === "number"
+                  ? payload.inputId
+                  : null,
+            requiresConfirmation:
+              "requires_confirmation" in payload && typeof payload.requires_confirmation === "boolean"
+                ? payload.requires_confirmation
+                : "requiresConfirmation" in payload && typeof payload.requiresConfirmation === "boolean"
+                  ? payload.requiresConfirmation
+                  : false,
+            source,
+          };
+
+    return successResponse(responsePayload);
   } catch (error) {
     const apiError = asApiError(error);
     return errorResponse(apiError.message, apiError.code, apiError.status);

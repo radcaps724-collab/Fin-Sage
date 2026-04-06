@@ -1,14 +1,10 @@
 import { NextResponse } from "next/server";
-import { ObjectId } from "mongodb";
-import clientPromise from "@/lib/mongodb";
 import { ApiError, asApiError } from "@/lib/api-errors";
 import { parseJsonBody, errorResponse, successResponse } from "@/lib/api-response";
-import { AUTH_COOKIE_NAME, signAuthToken } from "@/lib/auth";
-import { verifyPassword } from "@/lib/password";
-import type { User } from "@/types/models";
+import { AUTH_COOKIE_NAME, BACKEND_AUTH_COOKIE_NAME, signAuthToken } from "@/lib/auth";
 
-const DATABASE_NAME = "finsage";
-type UserRecord = Omit<User, "_id"> & { _id: ObjectId };
+const BACKEND_BASE_URL =
+  process.env.BACKEND_URL ?? process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:5000";
 
 interface LoginBody {
   email: string;
@@ -29,42 +25,75 @@ export async function POST(request: Request) {
       throw new ApiError("Invalid login payload", 400, "VALIDATION_ERROR");
     }
 
-    const client = await clientPromise;
-    const db = client.db(DATABASE_NAME);
-    const normalizedEmail = email.trim().toLowerCase();
-    const user = await db.collection<UserRecord>("users").findOne({ email: normalizedEmail });
-    if (!user) {
-      throw new ApiError("User not found", 400, "USER_NOT_FOUND");
+    let upstream: Response;
+    try {
+      upstream = await fetch(`${BACKEND_BASE_URL}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+      });
+    } catch {
+      throw new ApiError(
+        `Auth backend unavailable at ${BACKEND_BASE_URL}`,
+        502,
+        "BACKEND_UNAVAILABLE"
+      );
     }
 
-    const hashedPassword = user.password;
-    if (typeof hashedPassword !== "string") {
-      throw new ApiError("Corrupted user credentials", 500, "USER_DATA_INVALID");
+    let payload: {
+      message?: string;
+      token?: string;
+      user?: { id: string; name: string; email: string };
+    } = {};
+
+    try {
+      payload = (await upstream.json()) as typeof payload;
+    } catch {
+      if (!upstream.ok) {
+        throw new ApiError(
+          `Auth backend error (${upstream.status})`,
+          upstream.status,
+          "BACKEND_LOGIN_FAILED"
+        );
+      }
     }
 
-    const isMatch = verifyPassword(password, hashedPassword);
-    if (!isMatch) {
-      throw new ApiError("Invalid credentials", 400, "INVALID_CREDENTIALS");
+    if (!upstream.ok || !payload.token || !payload.user) {
+      throw new ApiError(
+        payload.message || "Invalid credentials",
+        upstream.status || 401,
+        "BACKEND_LOGIN_FAILED"
+      );
     }
 
     const token = signAuthToken({
-      userId: user._id.toHexString(),
-      email: user.email,
-      name: user.name,
+      userId: payload.user.id,
+      email: payload.user.email,
+      name: payload.user.name,
     });
 
     const response = successResponse({
       user: {
-        _id: user._id.toHexString(),
-        name: user.name,
-        email: user.email,
-        onboardingCompleted: Boolean(user.onboardingCompleted),
+        _id: payload.user.id,
+        name: payload.user.name,
+        email: payload.user.email,
+        onboardingCompleted: true,
       },
     });
 
     response.cookies.set({
       name: AUTH_COOKIE_NAME,
       value: token,
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 7,
+    });
+
+    response.cookies.set({
+      name: BACKEND_AUTH_COOKIE_NAME,
+      value: payload.token,
       httpOnly: true,
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
@@ -81,6 +110,12 @@ export async function POST(request: Request) {
 
 export async function DELETE() {
   const response = NextResponse.json({ success: true });
+  response.cookies.set({
+    name: BACKEND_AUTH_COOKIE_NAME,
+    value: "",
+    path: "/",
+    expires: new Date(0),
+  });
   response.cookies.set({
     name: AUTH_COOKIE_NAME,
     value: "",

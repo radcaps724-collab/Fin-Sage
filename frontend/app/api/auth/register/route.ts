@@ -1,18 +1,14 @@
-import { ObjectId } from "mongodb";
-import clientPromise from "@/lib/mongodb";
 import { ApiError, asApiError } from "@/lib/api-errors";
 import { parseJsonBody, errorResponse, successResponse } from "@/lib/api-response";
-import { hashPassword } from "@/lib/password";
-import type { User } from "@/types/models";
-
-const DATABASE_NAME = "finsage";
-type UserRecord = Omit<User, "_id"> & { _id: ObjectId };
 
 interface RegisterBody {
   name: string;
   email: string;
   password: string;
 }
+
+const BACKEND_BASE_URL =
+  process.env.BACKEND_URL ?? process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:5000";
 
 export async function POST(request: Request) {
   try {
@@ -25,29 +21,51 @@ export async function POST(request: Request) {
       typeof email !== "string" ||
       !email.trim() ||
       typeof password !== "string" ||
-      password.length < 6
+      password.length < 8
     ) {
       throw new ApiError("Invalid registration payload", 400, "VALIDATION_ERROR");
     }
 
-    const client = await clientPromise;
-    const db = client.db(DATABASE_NAME);
-    const normalizedEmail = email.trim().toLowerCase();
-    const existingUser = await db
-      .collection<UserRecord>("users")
-      .findOne({ email: normalizedEmail });
-    if (existingUser) {
-      throw new ApiError("Email already registered", 409, "DUPLICATE_EMAIL");
+    let upstream: Response;
+    try {
+      upstream = await fetch(`${BACKEND_BASE_URL}/api/auth/signup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
+          password,
+          monthlyIncome: 0,
+          financialGoals: [],
+        }),
+      });
+    } catch {
+      throw new ApiError(
+        `Auth backend unavailable at ${BACKEND_BASE_URL}`,
+        502,
+        "BACKEND_UNAVAILABLE"
+      );
     }
 
-    const createdAt = new Date().toISOString();
-    await db.collection<Omit<User, "_id">>("users").insertOne({
-      name: name.trim(),
-      email: normalizedEmail,
-      password: hashPassword(password),
-      onboardingCompleted: false,
-      createdAt,
-    });
+    let payload: { message?: string } = {};
+    try {
+      payload = (await upstream.json()) as { message?: string };
+    } catch {
+      if (!upstream.ok) {
+        throw new ApiError(
+          `Auth backend error (${upstream.status})`,
+          upstream.status,
+          "BACKEND_SIGNUP_FAILED"
+        );
+      }
+    }
+    if (!upstream.ok) {
+      throw new ApiError(
+        payload.message || "Registration failed",
+        upstream.status,
+        "BACKEND_SIGNUP_FAILED"
+      );
+    }
 
     return successResponse({ success: true }, 201);
   } catch (error) {
