@@ -1,0 +1,83 @@
+.panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 1rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.title {
+  margin: 0 0 0.8rem;
+  font-size: 1.08rem;
+}
+
+.emptyState,
+.chart {
+  min-height: 260px;
+  border-radius: 22px;
+  padding: 1rem;
+  background: var(--surface-elevated);
+}
+
+.emptyState {
+  display: grid;
+  place-items: center;
+  color: var(--muted-text);
+  text-align: center;
+}
+
+.chartBar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+  align-items: end;
+  gap: 0.8rem;
+}
+
+.barWrap {
+  display: grid;
+  justify-items: center;
+  gap: 0.4rem;
+  min-height: 220px;
+}
+
+.barWrap strong {
+  font-size: 0.86rem;
+}
+
+.barWrap span {
+  text-align: center;
+  color: var(--muted-text);
+  font-size: 0.84rem;
+}
+
+.bar {
+  width: 100%;
+  border-radius: 18px 18px 6px 6px;
+  background: linear-gradient(180deg, var(--accent), var(--primary));
+}
+
+.chartPie {
+  display: grid;
+  align-content: start;
+  gap: 0.65rem;
+}
+
+.pieRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  border-radius: 18px;
+  padding: 0.85rem 0.95rem;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.pieRow strong,
+.pieRow span {
+  display: block;
+}
+
+.pieRow div span {
+  color: var(--muted-text);
+  font-size: 0.82rem;
+}
