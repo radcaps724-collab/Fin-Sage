@@ -1,0 +1,78 @@
+.wrap {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at 20% 10%, rgba(98, 139, 255, 0.35), transparent 35%),
+    radial-gradient(circle at 80% 30%, rgba(138, 95, 255, 0.28), transparent 40%),
+    var(--bg);
+  position: relative;
+  overflow: hidden;
+}
+
+.glow {
+  position: absolute;
+  width: 460px;
+  height: 460px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(143, 91, 255, 0.35), transparent 70%);
+  filter: blur(18px);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.card {
+  z-index: 1;
+  width: min(420px, calc(100% - 2rem));
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  background: var(--surface);
+  backdrop-filter: blur(14px);
+  padding: 2rem 1.5rem;
+  text-align: center;
+  color: var(--text);
+  box-shadow: var(--shadow-md);
+}
+
+.logo {
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  object-fit: contain;
+}
+
+.card h1 {
+  margin: 0.5rem 0 0;
+  font-size: 2rem;
+}
+
+.card p {
+  margin-top: 0.5rem;
+  color: var(--muted-text);
+}
+
+.spinner {
+  margin: 0.9rem auto 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-top-color: var(--primary);
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  50% {
+    transform: scale(1.06);
+    opacity: 0.6;
+  }
+}

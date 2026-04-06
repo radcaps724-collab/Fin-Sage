@@ -1,0 +1,252 @@
+.page {
+  min-height: 100vh;
+  padding: 1.5rem;
+  display: grid;
+  place-items: center;
+}
+
+.shell {
+  width: min(1180px, 100%);
+  display: grid;
+  grid-template-columns: minmax(320px, 0.95fr) minmax(0, 1.15fr);
+  gap: 1.25rem;
+}
+
+.summaryPanel,
+.formPanel {
+  border: 1px solid var(--border);
+  border-radius: 32px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.summaryPanel {
+  padding: 2rem;
+  display: grid;
+  gap: 1.15rem;
+  align-content: start;
+}
+
+.badge,
+.kicker {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  padding: 0.35rem 0.8rem;
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted-text);
+}
+
+.summaryPanel h1,
+.formHeader h2 {
+  margin: 0;
+}
+
+.summaryPanel h1 {
+  font-size: clamp(2.3rem, 5vw, 4rem);
+  line-height: 0.98;
+}
+
+.summaryPanel p,
+.formHeader p {
+  margin: 0;
+  color: var(--muted-text);
+}
+
+.progressWrap {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.progressMeta {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+  color: var(--muted-text);
+}
+
+.progressBar {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+}
+
+.progressBar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+}
+
+.stepList,
+.snapshot {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.stepItem {
+  display: flex;
+  gap: 0.8rem;
+  align-items: center;
+  padding: 0.9rem 1rem;
+  border-radius: 20px;
+  border: 1px solid transparent;
+  color: var(--muted-text);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.stepItem strong {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.stepItemActive {
+  color: var(--text);
+  border-color: var(--border);
+  background: linear-gradient(135deg, rgba(88, 204, 180, 0.12), rgba(242, 166, 90, 0.12));
+}
+
+.snapshot {
+  padding-top: 0.4rem;
+}
+
+.snapshot div {
+  display: grid;
+  gap: 0.18rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--border);
+}
+
+.snapshot span {
+  color: var(--muted-text);
+  font-size: 0.82rem;
+}
+
+.formPanel {
+  padding: 1.8rem;
+  display: grid;
+  gap: 1.1rem;
+}
+
+.formHeader {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.questionGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.questionGrid label {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.questionGrid span {
+  color: var(--muted-text);
+  font-size: 0.9rem;
+}
+
+.questionGrid input,
+.questionGrid select {
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface-elevated);
+  color: var(--text);
+  padding: 0.92rem 1rem;
+}
+
+.toggleField {
+  align-content: start;
+}
+
+.toggleRow {
+  display: flex;
+  gap: 0.55rem;
+}
+
+.choiceChip {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.72rem 1rem;
+  color: var(--text);
+  background: var(--surface-elevated);
+  cursor: pointer;
+}
+
+.choiceChipActive {
+  color: #081017;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+}
+
+.fullWidth {
+  grid-column: 1 / -1;
+}
+
+.actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+  margin-top: 0.35rem;
+}
+
+.primary,
+.secondary {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.92rem 1.2rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.secondary {
+  color: var(--text);
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+}
+
+.primary {
+  color: #081017;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+}
+
+.secondary:disabled,
+.primary:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.error {
+  color: var(--danger);
+  margin: 0;
+}
+
+@media (max-width: 980px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .questionGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .actions {
+    flex-direction: column-reverse;
+  }
+}
