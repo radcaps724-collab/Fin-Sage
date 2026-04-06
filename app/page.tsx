@@ -1,66 +1,89 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+"use client";
 
-export default function Home() {
+import { useState } from "react";
+import { VoiceButton } from "@/components/VoiceButton";
+import {
+  sendVoiceText,
+  type ParsedTransactionResponse,
+} from "@/lib/api";
+
+export default function HomePage() {
+  const [recognizedText, setRecognizedText] = useState<string>("");
+  const [parsed, setParsed] = useState<ParsedTransactionResponse | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string>("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleTranscript = async (text: string) => {
+    setRecognizedText(text);
+    setErrorMessage("");
+    setIsSubmitting(true);
+
+    try {
+      const response = await sendVoiceText(text);
+      setParsed(response);
+    } catch (error) {
+      setParsed(null);
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Failed to parse your voice transaction."
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className={styles.intro}>
-          <h1>To get started, edit the page.tsx file.</h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <section className="voice-wrap">
+      <div className="panel voice-panel">
+        <span className="badge">Voice-first tracking</span>
+        <h1 className="section-title" style={{ marginTop: "0.8rem" }}>
+          Speak your transaction naturally
+        </h1>
+        <p className="section-subtitle">
+          Example: "Spent 450 rupees on groceries."
+        </p>
+
+        <VoiceButton onTranscript={handleTranscript} />
+
+        <div className="recognized-text">
+          {recognizedText
+            ? `Recognized: "${recognizedText}"`
+            : "Tap the mic button and start speaking."}
+        </div>
+
+        {isSubmitting && (
+          <p className="section-subtitle" style={{ marginTop: "0.8rem" }}>
+            Sending transcript to backend...
           </p>
-        </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+        )}
+
+        {errorMessage && (
+          <p
+            className="section-subtitle"
+            style={{ marginTop: "0.8rem", color: "var(--danger)" }}
           >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+            {errorMessage}
+          </p>
+        )}
+
+        {parsed && (
+          <div className="response-grid">
+            <article className="stat-card">
+              <p>Amount</p>
+              <h4>{parsed.amount}</h4>
+            </article>
+            <article className="stat-card">
+              <p>Category</p>
+              <h4>{parsed.category}</h4>
+            </article>
+            <article className="stat-card">
+              <p>Type</p>
+              <h4 style={{ textTransform: "capitalize" }}>{parsed.type}</h4>
+            </article>
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
