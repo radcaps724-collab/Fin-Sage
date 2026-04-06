@@ -60,6 +60,8 @@ export default function InsightsPage() {
       ? (insights.totalExpenses / (profile.monthlyBudget ?? 1)) * 100
       : null;
 
+  const netFlow = insights.totalIncome - insights.totalExpenses;
+
   return (
     <section className={styles.section}>
       <div className={styles.hero}>
@@ -89,26 +91,18 @@ export default function InsightsPage() {
           <strong>{formatPercent(insights.savingsRate)}</strong>
         </article>
         <article className={styles.metric}>
-          <span>Top spend category</span>
-          <strong>{insights.topCategory}</strong>
+          <span>Net flow</span>
+          <strong>{formatCurrency(netFlow, profile?.currency)}</strong>
         </article>
       </div>
 
       <div className={styles.summaryGrid}>
         <article className={styles.panel}>
           <div className={styles.panelHeader}>
-            <h2>Behaviour context</h2>
-            <p>Using your onboarding answers to interpret the numbers with the right lens.</p>
+            <h2>Budget snapshot</h2>
+            <p>Quick view of your configured budget and current usage.</p>
           </div>
           <div className={styles.contextGrid}>
-            <div>
-              <span>Spending style</span>
-              <strong>{profile?.spendingStyle ?? "Balanced"}</strong>
-            </div>
-            <div>
-              <span>Overspend area</span>
-              <strong>{profile?.overspendArea ?? "Don't know"}</strong>
-            </div>
             <div>
               <span>Monthly budget</span>
               <strong>
@@ -120,6 +114,14 @@ export default function InsightsPage() {
             <div>
               <span>Budget used</span>
               <strong>{budgetUsage === null ? "No budget yet" : formatPercent(budgetUsage)}</strong>
+            </div>
+            <div>
+              <span>Top category</span>
+              <strong>{insights.topCategory}</strong>
+            </div>
+            <div>
+              <span>Spending style</span>
+              <strong>{profile?.spendingStyle ?? "Balanced"}</strong>
             </div>
           </div>
         </article>

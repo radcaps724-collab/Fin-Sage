@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { registerUser } from "@/lib/api";
-import styles from "@/styles/pages/register.module.css";
+import { useEffect, useRef, useState } from "react";
+import { loginUser, registerUser } from "@/lib/api";
+import styles from "@/styles/pages/login.module.css";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -13,6 +13,44 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const sectionRef = useRef<HTMLElement | null>(null);
+  const targetPointer = useRef({ x: 50, y: 50 });
+  const smoothPointer = useRef({ x: 50, y: 50 });
+  const [theme, setTheme] = useState<"light" | "dark">("dark");
+  const [logoBroken, setLogoBroken] = useState(false);
+
+  useEffect(() => {
+    const rootTheme = document.documentElement.getAttribute("data-theme");
+    setTheme(rootTheme === "light" ? "light" : "dark");
+  }, []);
+
+  useEffect(() => {
+    let frameId = 0;
+
+    const animate = () => {
+      const element = sectionRef.current;
+      if (!element) {
+        frameId = requestAnimationFrame(animate);
+        return;
+      }
+
+      smoothPointer.current.x += (targetPointer.current.x - smoothPointer.current.x) * 0.14;
+      smoothPointer.current.y += (targetPointer.current.y - smoothPointer.current.y) * 0.14;
+
+      const nx = (smoothPointer.current.x - 50) / 50;
+      const ny = (smoothPointer.current.y - 50) / 50;
+
+      element.style.setProperty("--mx", `${smoothPointer.current.x}%`);
+      element.style.setProperty("--my", `${smoothPointer.current.y}%`);
+      element.style.setProperty("--px", `${nx * 14}px`);
+      element.style.setProperty("--py", `${ny * 14}px`);
+
+      frameId = requestAnimationFrame(animate);
+    };
+
+    frameId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frameId);
+  }, []);
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -26,7 +64,9 @@ export default function RegisterPage() {
     setLoading(true);
     try {
       await registerUser(name, email, password);
-      router.push("/login");
+      const login = await loginUser(email, password);
+      router.push(login.user.onboardingCompleted ? "/dashboard" : "/onboarding");
+      router.refresh();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Registration failed.");
     } finally {
@@ -35,38 +75,41 @@ export default function RegisterPage() {
   };
 
   return (
-    <section className={styles.authPage}>
-      <div className={styles.authLayout}>
-        <div className={styles.authIntro}>
-          <span className={styles.badge}>Set up FinSage</span>
-          <h1>Create your account and start tracking smarter.</h1>
-          <p>
-            Once your account is ready, you&apos;ll log in and answer a short onboarding session
-            so the app can tailor budgets, nudges, and insights around your real context.
-          </p>
-          <div className={styles.points}>
-            <div>
-              <strong>Fast start</strong>
-              <span>Only your name, email, and password are needed to create the account.</span>
-            </div>
-            <div>
-              <strong>Guided onboarding</strong>
-              <span>Income, commitments, spending style, and overspend areas come next.</span>
-            </div>
-            <div>
-              <strong>Insights that learn</strong>
-              <span>Your future ML and Python layers can build directly on the same Mongo history.</span>
-            </div>
-          </div>
+    <section
+      ref={sectionRef}
+      className={styles.authPage}
+      onMouseMove={(event) => {
+        const bounds = event.currentTarget.getBoundingClientRect();
+        const x = ((event.clientX - bounds.left) / bounds.width) * 100;
+        const y = ((event.clientY - bounds.top) / bounds.height) * 100;
+        targetPointer.current = { x, y };
+      }}
+      onMouseLeave={() => {
+        targetPointer.current = { x: 50, y: 50 };
+      }}
+    >
+      <div className={styles.cursorGlow} />
+      <div className={styles.cursorDot} />
+      <div className={styles.bgGlowPrimary} />
+      <div className={styles.bgGlowSecondary} />
+      <div className={styles.bgGlowTertiary} />
+      <form className={styles.loginShell} onSubmit={submit}>
+        <div className={styles.hero}>
+          {logoBroken ? (
+            <div className={styles.logoFallback}>FS</div>
+          ) : (
+            <img
+              src={theme === "light" ? "/Logodark.png" : "/Logolight.png"}
+              alt="FinSage logo"
+              className={styles.logoImage}
+              onError={() => setLogoBroken(true)}
+            />
+          )}
+          <h1>Create account</h1>
+          <p>Register to start your smart financial journey with FinSage.</p>
         </div>
 
-        <form className={styles.authPanel} onSubmit={submit}>
-          <div className={styles.panelHeader}>
-            <span className={styles.kicker}>Create account</span>
-            <h2>Open your FinSage workspace</h2>
-            <p>You can log in right after this and continue to onboarding.</p>
-          </div>
-
+        <div className={styles.formArea}>
           <label>
             <span>Name</span>
             <input
@@ -102,15 +145,15 @@ export default function RegisterPage() {
 
           {error && <p className={styles.error}>{error}</p>}
 
-          <button type="submit" disabled={loading}>
+          <button type="submit" className={styles.primaryAction} disabled={loading}>
             {loading ? "Creating account..." : "Register"}
           </button>
 
           <p className={styles.foot}>
             Already registered? <Link href="/login">Sign in</Link>
           </p>
-        </form>
-      </div>
+        </div>
+      </form>
     </section>
   );
 }
